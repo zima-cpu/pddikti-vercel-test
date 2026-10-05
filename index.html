@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Test API PDDIKTI</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #174f7c;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            background: #1677b8;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+        pre {
+            margin-top: 20px;
+            background: #f4f4f4;
+            padding: 20px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            overflow: auto;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>Test API PDDIKTI</h1>
+
+    <p>
+        Tes koneksi JavaScript langsung ke API PDDIKTI.
+    </p>
+
+    <button id="testButton">
+        Test API
+    </button>
+
+    <div id="status">
+        Belum dites.
+    </div>
+
+    <pre id="hasil"></pre>
+
+
+    <script>
+
+        const button =
+            document.getElementById("testButton");
+
+        const status =
+            document.getElementById("status");
+
+        const hasil =
+            document.getElementById("hasil");
+
+
+        button.addEventListener(
+            "click",
+            async function () {
+
+                status.textContent =
+                    "Menghubungi API PDDIKTI...";
+
+                hasil.textContent =
+                    "";
+
+
+                const keyword =
+                    "Politeknik Negeri Lhokseumawe";
+
+
+                const url =
+                    "https://pddikti.kemdiktisaintek.go.id/api/pencarian/enc/all/"
+                    +
+                    encodeURIComponent(keyword);
+
+
+                try {
+
+                    const response =
+                        await fetch(url, {
+                            method: "GET",
+
+                            headers: {
+                                "Accept":
+                                    "application/json, text/plain, */*"
+                            }
+                        });
+
+
+                    status.textContent =
+                        "HTTP Status: "
+                        +
+                        response.status;
+
+
+                    const text =
+                        await response.text();
+
+
+                    try {
+
+                        const data =
+                            JSON.parse(text);
+
+
+                        hasil.textContent =
+                            JSON.stringify(
+                                data,
+                                null,
+                                2
+                            );
+
+                    } catch {
+
+                        hasil.textContent =
+                            text;
+
+                    }
+
+
+                } catch (error) {
+
+                    status.textContent =
+                        "REQUEST GAGAL";
+
+
+                    hasil.textContent =
+                        error.name
+                        +
+                        ": "
+                        +
+                        error.message;
+
+
+                    console.error(error);
+                }
+
+            }
+        );
+
+    </script>
+
+</body>
+</html>
