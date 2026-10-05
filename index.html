@@ -1,166 +1,436 @@
+
 <!DOCTYPE html>
+
 <html lang="id">
+
 <head>
+
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Test API PDDIKTI</title>
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 900px;
-            margin: 40px auto;
-            padding: 20px;
-        }
+    <title>
+        Data Mahasiswa PNL - API PDDIKTI
+    </title>
 
-        h1 {
-            color: #174f7c;
-        }
+    <link
+        rel="stylesheet"
+        href="style.css?v=6"
+    >
 
-        button {
-            padding: 12px 20px;
-            border: none;
-            border-radius: 6px;
-            background: #1677b8;
-            color: white;
-            cursor: pointer;
-            font-size: 16px;
-        }
-
-        #status {
-            margin-top: 20px;
-            font-weight: bold;
-        }
-
-        pre {
-            margin-top: 20px;
-            background: #f4f4f4;
-            padding: 20px;
-            border-radius: 8px;
-            white-space: pre-wrap;
-            overflow: auto;
-        }
-    </style>
 </head>
+
 
 <body>
 
-    <h1>Test API PDDIKTI</h1>
 
-    <p>
-        Tes koneksi JavaScript langsung ke API PDDIKTI.
-    </p>
+<header class="header">
 
-    <button id="testButton">
-        Test API
-    </button>
+    <div class="header-inner">
 
-    <div id="status">
-        Belum dites.
+        <div class="brand">
+
+            <div class="brand-icon">
+                PNL
+            </div>
+
+            <div>
+
+                <h1>
+                    Data Mahasiswa PNL
+                </h1>
+
+                <p>
+                    Sistem Informasi Berbasis API PDDIKTI
+                </p>
+
+            </div>
+
+        </div>
+
+
+        <div class="source">
+
+            <span>
+                Sumber Data
+            </span>
+
+            <strong>
+                PDDIKTI
+            </strong>
+
+        </div>
+
     </div>
 
-    <pre id="hasil"></pre>
+</header>
 
 
-    <script>
 
-        const button =
-            document.getElementById("testButton");
+<section class="hero">
 
-        const status =
-            document.getElementById("status");
+    <div class="hero-inner">
 
-        const hasil =
-            document.getElementById("hasil");
+        <h2>
+            Data Mahasiswa
+            Politeknik Negeri Lhokseumawe
+        </h2>
 
+        <p>
+            Pencarian dan pemfilteran data mahasiswa
+            berdasarkan Program Studi dan Tahun Masuk.
+        </p>
 
-        button.addEventListener(
-            "click",
-            async function () {
+    </div>
 
-                status.textContent =
-                    "Menghubungi API PDDIKTI...";
-
-                hasil.textContent =
-                    "";
+</section>
 
 
-                const keyword =
-                    "Politeknik Negeri Lhokseumawe";
+
+<main class="container">
 
 
-                const url =
-                    "https://pddikti.kemdiktisaintek.go.id/api/pencarian/enc/all/"
-                    +
-                    encodeURIComponent(keyword);
+    <!-- ========================================================
+         FILTER
+    ======================================================== -->
+
+    <section class="filter-card">
 
 
-                try {
+        <div class="filter-title">
 
-                    const response =
-                        await fetch(url, {
-                            method: "GET",
+            <h3>
+                Filter Data Mahasiswa
+            </h3>
 
-                            headers: {
-                                "Accept":
-                                    "application/json, text/plain, */*"
-                            }
-                        });
+            <p>
+                Data ditampilkan secara otomatis.
+                Gunakan filter untuk mempersempit hasil.
+            </p>
 
-
-                    status.textContent =
-                        "HTTP Status: "
-                        +
-                        response.status;
+        </div>
 
 
-                    const text =
-                        await response.text();
+        <div class="filter-grid">
 
 
-                    try {
+            <div class="form-group">
 
-                        const data =
-                            JSON.parse(text);
+                <label for="searchInput">
+                    Nama / NIM
+                </label>
 
+                <input
+                    type="text"
+                    id="searchInput"
+                    placeholder="Opsional: cari nama atau NIM"
+                    autocomplete="off"
+                >
 
-                        hasil.textContent =
-                            JSON.stringify(
-                                data,
-                                null,
-                                2
-                            );
-
-                    } catch {
-
-                        hasil.textContent =
-                            text;
-
-                    }
+            </div>
 
 
-                } catch (error) {
 
-                    status.textContent =
-                        "REQUEST GAGAL";
+            <div class="form-group">
+
+                <label for="prodiFilter">
+                    Program Studi
+                </label>
+
+                <select id="prodiFilter">
+
+                    <option value="all">
+                        Semua Program Studi
+                    </option>
+
+                </select>
+
+            </div>
 
 
-                    hasil.textContent =
-                        error.name
-                        +
-                        ": "
-                        +
-                        error.message;
+
+            <div class="form-group">
+
+                <label for="tahunFilter">
+                    Tahun Masuk
+                </label>
+
+                <select id="tahunFilter">
+
+                    <option value="all">
+                        Semua Tahun
+                    </option>
+
+                </select>
+
+            </div>
 
 
-                    console.error(error);
-                }
+        </div>
 
-            }
-        );
 
-    </script>
+        <div class="filter-actions">
+
+            <button
+                id="btnTerapkan"
+                type="button"
+                class="btn btn-primary"
+            >
+                Terapkan Filter
+            </button>
+
+
+            <button
+                id="btnReset"
+                type="button"
+                class="btn btn-secondary"
+            >
+                Reset
+            </button>
+
+        </div>
+
+    </section>
+
+
+
+    <!-- ========================================================
+         STATISTIK
+    ======================================================== -->
+
+    <section class="stat-grid">
+
+
+        <div class="stat-card">
+
+            <span class="stat-label">
+                Hasil API Ditemukan
+            </span>
+
+            <strong
+                id="statTotal"
+                class="stat-value"
+            >
+                -
+            </strong>
+
+        </div>
+
+
+        <div class="stat-card">
+
+            <span class="stat-label">
+                Program Studi
+            </span>
+
+            <strong
+                id="statProdi"
+                class="stat-value"
+            >
+                Semua Program Studi
+            </strong>
+
+        </div>
+
+
+        <div class="stat-card">
+
+            <span class="stat-label">
+                Tahun Masuk
+            </span>
+
+            <strong
+                id="statTahun"
+                class="stat-value"
+            >
+                Semua Tahun
+            </strong>
+
+        </div>
+
+
+    </section>
+
+
+
+    <div
+        id="messageBox"
+        class="message hidden"
+    ></div>
+
+
+
+    <div
+        id="loadingBox"
+        class="loading hidden"
+    >
+
+        <div class="spinner"></div>
+
+        <p id="loadingText">
+            Mengambil data mahasiswa dari PDDIKTI...
+        </p>
+
+        <small>
+            Detail mahasiswa sedang diproses.
+            Proses pertama dapat memerlukan waktu.
+        </small>
+
+    </div>
+
+
+
+    <!-- ========================================================
+         TABLE
+    ======================================================== -->
+
+    <section
+        id="tableSection"
+        class="table-card hidden"
+    >
+
+
+        <div class="table-header">
+
+            <div>
+
+                <h3>
+                    Data Mahasiswa
+                </h3>
+
+                <p id="tableDescription">
+                    Semua Program Studi - Semua Tahun
+                </p>
+
+            </div>
+
+
+            <div id="resultInfo">
+                0 hasil API
+            </div>
+
+        </div>
+
+
+
+        <div class="table-responsive">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>No</th>
+
+                        <th>Nama</th>
+
+                        <th>NIM</th>
+
+                        <th>Program Studi</th>
+
+                        <th>Jenjang</th>
+
+                        <th>Tahun Masuk</th>
+
+                        <th>Status</th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody id="studentTableBody">
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+
+
+        <div class="pagination">
+
+            <button
+                id="prevPage"
+                type="button"
+                class="page-button"
+            >
+                ← Sebelumnya
+            </button>
+
+
+            <div
+                id="pageNumbers"
+                class="page-numbers"
+            ></div>
+
+
+            <button
+                id="nextPage"
+                type="button"
+                class="page-button"
+            >
+                Berikutnya →
+            </button>
+
+        </div>
+
+    </section>
+
+
+
+    <section class="note">
+
+        <strong>
+            Catatan:
+        </strong>
+
+        Nama, NIM, Program Studi, Tahun Masuk,
+        Jenjang, dan Status mahasiswa diperoleh
+        melalui API publik PDDIKTI.
+
+        Tahun Masuk berasal dari field
+        <strong>tanggal_masuk</strong>
+        pada detail mahasiswa dan tidak ditentukan
+        dari pola NIM.
+
+        Jumlah hasil merupakan jumlah data yang
+        dikembalikan oleh pencarian API dan tidak
+        merepresentasikan seluruh populasi mahasiswa PNL.
+
+    </section>
+
+
+</main>
+
+
+
+<footer>
+
+    <div>
+
+        Sistem Informasi Data Mahasiswa
+        Politeknik Negeri Lhokseumawe
+
+        <br>
+
+        Integrasi API PDDIKTI -
+        Mata Kuliah Sistem Terintegrasi
+
+    </div>
+
+</footer>
+
+
+
+<script src="script.js?v=7"></script>
+
 
 </body>
+
 </html>
