@@ -471,13 +471,23 @@ body {
         grid;
 
     grid-template-columns:
-        repeat(3, 1fr);
+        repeat(2, 1fr);
 
     gap:
         15px;
 
     margin-bottom:
         22px;
+}
+
+
+/*
+ * Sembunyikan kartu pertama:
+ * "Hasil API Ditemukan"
+ */
+.stat-card:first-child {
+    display:
+        none;
 }
 
 
@@ -621,6 +631,9 @@ body {
 }
 
 
+/*
+ * Pesan error tetap terlihat.
+ */
 .message-error {
     background:
         #fff0f0;
@@ -634,7 +647,13 @@ body {
 }
 
 
+/*
+ * Pesan sukses hijau disembunyikan.
+ */
 .message-success {
+    display:
+        none !important;
+
     background:
         var(--green-soft);
 
