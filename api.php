@@ -707,6 +707,97 @@ function mapJenjangProdi(): array
 
 
 /* ============================================================
+   CARI DARI DATABASE MAHASISWA JSON (OFFLINE / ANTI-403 VERCEL)
+============================================================ */
+
+function cariDariMahasiswaJson(string $prodi, string $tahun, string $q): array
+{
+    $file = __DIR__ . '/data/mahasiswa.json';
+    if (!file_exists($file)) {
+        return [];
+    }
+
+    $raw = @file_get_contents($file);
+    if (!$raw) {
+        return [];
+    }
+
+    $data = json_decode($raw, true);
+    $items = $data['data']['items'] ?? [];
+    if (!is_array($items)) {
+        return [];
+    }
+
+    $jurusanDefs = getJurusanDefinitions();
+    $selectedJurusan = null;
+    foreach ($jurusanDefs as $jKey => $jDef) {
+        if (
+            normalisasi($prodi) === normalisasi($jKey) ||
+            normalisasi($prodi) === normalisasi($jDef['id']) ||
+            normalisasi($prodi) === normalisasi($jDef['nama_prodi'])
+        ) {
+            $selectedJurusan = $jDef;
+            break;
+        }
+    }
+
+    $qNorm = normalisasi($q);
+    $prodiNorm = normalisasi($prodi);
+    $memberProdiNames = $selectedJurusan ? array_map('normalisasi', array_keys($selectedJurusan['prodis'])) : [];
+
+    $filtered = [];
+    foreach ($items as $m) {
+        // 1. Filter Q (Nama atau NIM)
+        if ($qNorm !== '') {
+            $namaNorm = normalisasi($m['nama'] ?? '');
+            $nimNorm = normalisasi($m['nim'] ?? '');
+            if (strpos($namaNorm, $qNorm) === false && strpos($nimNorm, $qNorm) === false) {
+                continue;
+            }
+        }
+
+        // 2. Filter Prodi / Jurusan
+        if ($selectedJurusan) {
+            $mProdi = normalisasi($m['nama_prodi'] ?? '');
+            $cocok = false;
+            foreach ($memberProdiNames as $mp) {
+                if (stripos($mProdi, $mp) !== false || stripos($mp, $mProdi) !== false) {
+                    $cocok = true;
+                    break;
+                }
+            }
+            if (!$cocok) {
+                continue;
+            }
+        } elseif ($prodi !== 'all' && $prodi !== '') {
+            $mProdi = normalisasi($m['nama_prodi'] ?? '');
+            if (stripos($mProdi, $prodiNorm) === false && stripos($prodiNorm, $mProdi) === false) {
+                continue;
+            }
+        }
+
+        // 3. Filter Tahun Masuk
+        if ($tahun !== 'all' && $tahun !== '') {
+            $mTahun = (string)($m['tahun_masuk'] ?? '');
+            if ($mTahun === '') {
+                $nim = trim($m['nim'] ?? '');
+                if (str_starts_with($nim, $tahun)) {
+                    $mTahun = $tahun;
+                }
+            }
+            if ($mTahun !== (string)$tahun) {
+                continue;
+            }
+        }
+
+        $filtered[] = $m;
+    }
+
+    return array_values($filtered);
+}
+
+
+/* ============================================================
    DETAIL MAHASISWA
 
    METODE YANG SUDAH BERHASIL:
@@ -1475,37 +1566,118 @@ try {
         }
 
 
+        $localMhsFile = __DIR__ . '/data/mahasiswa.json';
+        $isVercel = (
+            getenv('VERCEL') ||
+            !empty($_ENV['VERCEL']) ||
+            (isset($_SERVER['VERCEL']) && $_SERVER['VERCEL'] == '1') ||
+            (isset($_SERVER['HTTP_HOST']) && strpos($_SERVER['HTTP_HOST'], 'vercel.app') !== false)
+        );
+
+        // Jika di Vercel dan file data/mahasiswa.json ada, utamakan pencarian database lokal (bebas blokir Cloudflare 403 & instant)
+        if ($isVercel && file_exists($localMhsFile)) {
+            $items = cariDariMahasiswaJson($prodi, $tahun, $q);
+            $tahunTersedia = [];
+            $tahunSekarang = (int)date('Y');
+            for ($y = max($tahunSekarang, 2026); $y >= 2012; $y--) {
+                $tahunTersedia[] = (string)$y;
+            }
+            foreach ($items as $it) {
+                $th = trim($it['tahun_masuk'] ?? '');
+                if ($th !== '' && !in_array($th, $tahunTersedia, true)) {
+                    $tahunTersedia[] = $th;
+                }
+            }
+            rsort($tahunTersedia, SORT_NUMERIC);
+
+            $labelProdi = ($prodi === 'all') ? 'Semua Program Studi' : $prodi;
+            $labelTahun = ($tahun === 'all') ? 'Semua Tahun' : $tahun;
+
+            responseJson(
+                true,
+                [
+                    'items' => $items,
+                    'jumlah_hasil_api' => count($items),
+                    'program_studi' => $labelProdi,
+                    'tahun' => $labelTahun,
+                    'tahun_tersedia' => $tahunTersedia,
+                    'keyword_api' => $q ?: ($prodi . ' ' . $tahun),
+                    'hasil_lengkap' => true,
+                    'sumber' => 'database_lokal'
+                ],
+                'Data mahasiswa berhasil diambil dari database PDDIKTI PNL.'
+            );
+        }
+
         /* ====================================================
            SEARCH (DASAR)
         ==================================================== */
 
-        $jurusanDefs = getJurusanDefinitions();
-        $selectedJurusan = null;
-        foreach ($jurusanDefs as $jKey => $jDef) {
-            if (
-                normalisasi($prodi) === normalisasi($jKey) ||
-                normalisasi($prodi) === normalisasi($jDef['id']) ||
-                normalisasi($prodi) === normalisasi($jDef['nama_prodi'])
-            ) {
-                $selectedJurusan = $jDef;
-                break;
+        try {
+            $jurusanDefs = getJurusanDefinitions();
+            $selectedJurusan = null;
+            foreach ($jurusanDefs as $jKey => $jDef) {
+                if (
+                    normalisasi($prodi) === normalisasi($jKey) ||
+                    normalisasi($prodi) === normalisasi($jDef['id']) ||
+                    normalisasi($prodi) === normalisasi($jDef['nama_prodi'])
+                ) {
+                    $selectedJurusan = $jDef;
+                    break;
+                }
             }
-        }
 
-        $isNim = preg_match('/^\d+$/', $q);
-        if ($q !== '') {
-            $parts = [$q];
-            // Jika bukan pencarian NIM angka murni dan prodi dipilih serta bukan jurusan/bidang
-            if (!$isNim && $prodi !== 'all' && $prodi !== '' && !$selectedJurusan) {
-                $parts[] = $prodi;
-            }
-            // Pastikan keyword selalu menyertakan nama kampus jika belum ada, agar hasil PDDIKTI terarah ke PNL
-            if (stripos($q, 'Lhokseumawe') === false && stripos($q, 'PNL') === false) {
-                $parts[] = PT_NAME;
-            }
-            $keyword = implode(' ', $parts);
-            $dasar = cariMahasiswaDasar($keyword, $selectedJurusan ? 'all' : $prodi);
-            if ($selectedJurusan) {
+            $isNim = preg_match('/^\d+$/', $q);
+            if ($q !== '') {
+                $parts = [$q];
+                // Jika bukan pencarian NIM angka murni dan prodi dipilih serta bukan jurusan/bidang
+                if (!$isNim && $prodi !== 'all' && $prodi !== '' && !$selectedJurusan) {
+                    $parts[] = $prodi;
+                }
+                // Pastikan keyword selalu menyertakan nama kampus jika belum ada, agar hasil PDDIKTI terarah ke PNL
+                if (stripos($q, 'Lhokseumawe') === false && stripos($q, 'PNL') === false) {
+                    $parts[] = PT_NAME;
+                }
+                $keyword = implode(' ', $parts);
+                $dasar = cariMahasiswaDasar($keyword, $selectedJurusan ? 'all' : $prodi);
+                if ($selectedJurusan) {
+                    $memberProdiNames = array_map('normalisasi', array_keys($selectedJurusan['prodis']));
+                    $dasar = array_values(array_filter($dasar, function ($m) use ($memberProdiNames) {
+                        $p = normalisasi($m['nama_prodi'] ?? '');
+                        foreach ($memberProdiNames as $mp) {
+                            if (stripos($p, $mp) !== false || stripos($mp, $p) !== false) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    }));
+                }
+                if ($tahun !== 'all' && preg_match('/^\d{4}$/', $tahun)) {
+                    $dasar = array_values(array_filter($dasar, function ($m) use ($tahun) {
+                        $nim = trim($m['nim'] ?? '');
+                        return str_starts_with($nim, $tahun);
+                    }));
+                }
+            } elseif ($selectedJurusan) {
+                // PENCARIAN TINGKAT JURUSAN / BIDANG (SEMUA PRODI DI BAWAHNYA)
+                $keywords = [];
+                $years = ($tahun !== 'all' && preg_match('/^\d{4}$/', $tahun))
+                    ? [(int)$tahun]
+                    : [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
+
+                foreach ($selectedJurusan['prodis'] as $pName => $pKode) {
+                    if ($pKode) {
+                        foreach ($years as $y) {
+                            for ($i = 0; $i <= 20; $i++) {
+                                $keywords[] = sprintf("%s%s%03d", $y, $pKode, $i);
+                            }
+                        }
+                    }
+                    $keywords[] = $pName . ' ' . PT_NAME;
+                }
+
+                $keyword = $selectedJurusan['nama_prodi'] . ' ' . ($tahun !== 'all' ? $tahun : 'Semua Tahun');
+                $dasar = pencarianMultiParallel($keywords, '', ($tahun !== 'all' ? $tahun : ''));
                 $memberProdiNames = array_map('normalisasi', array_keys($selectedJurusan['prodis']));
                 $dasar = array_values(array_filter($dasar, function ($m) use ($memberProdiNames) {
                     $p = normalisasi($m['nama_prodi'] ?? '');
@@ -1516,205 +1688,187 @@ try {
                     }
                     return false;
                 }));
-            }
-            if ($tahun !== 'all' && preg_match('/^\d{4}$/', $tahun)) {
-                $dasar = array_values(array_filter($dasar, function ($m) use ($tahun) {
-                    $nim = trim($m['nim'] ?? '');
-                    return str_starts_with($nim, $tahun);
-                }));
-            }
-        } elseif ($selectedJurusan) {
-            // PENCARIAN TINGKAT JURUSAN / BIDANG (SEMUA PRODI DI BAWAHNYA)
-            $keywords = [];
-            $years = ($tahun !== 'all' && preg_match('/^\d{4}$/', $tahun))
-                ? [(int)$tahun]
-                : [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
-
-            foreach ($selectedJurusan['prodis'] as $pName => $pKode) {
-                if ($pKode) {
-                    foreach ($years as $y) {
-                        for ($i = 0; $i <= 20; $i++) {
-                            $keywords[] = sprintf("%s%s%03d", $y, $pKode, $i);
+            } elseif ($prodi !== 'all') {
+                // PENCARIAN SATU PROGRAM STUDI TERTENTU (GRANULAR PREFIX 000-025, ANTI-TRUNCATE)
+                $kodeProdi = getKodeProdi($prodi);
+                $keywords = [];
+                if ($tahun !== 'all' && preg_match('/^\d{4}$/', $tahun)) {
+                    // Targeted parallel search untuk angkatan dan prodi tertentu
+                    // 000 hingga 025 (mencakup nomor urut 0001 - 0259 per tahun, aman dari limit 30 PDDIKTI)
+                    if ($kodeProdi) {
+                        for ($i = 0; $i <= 25; $i++) {
+                            $keywords[] = sprintf("%s%s%03d", $tahun, $kodeProdi, $i);
                         }
                     }
-                }
-                $keywords[] = $pName . ' ' . PT_NAME;
-            }
-
-            $keyword = $selectedJurusan['nama_prodi'] . ' ' . ($tahun !== 'all' ? $tahun : 'Semua Tahun');
-            $dasar = pencarianMultiParallel($keywords, '', ($tahun !== 'all' ? $tahun : ''));
-            $memberProdiNames = array_map('normalisasi', array_keys($selectedJurusan['prodis']));
-            $dasar = array_values(array_filter($dasar, function ($m) use ($memberProdiNames) {
-                $p = normalisasi($m['nama_prodi'] ?? '');
-                foreach ($memberProdiNames as $mp) {
-                    if (stripos($p, $mp) !== false || stripos($mp, $p) !== false) {
-                        return true;
-                    }
-                }
-                return false;
-            }));
-        } elseif ($prodi !== 'all') {
-            // PENCARIAN SATU PROGRAM STUDI TERTENTU (GRANULAR PREFIX 000-025, ANTI-TRUNCATE)
-            $kodeProdi = getKodeProdi($prodi);
-            $keywords = [];
-            if ($tahun !== 'all' && preg_match('/^\d{4}$/', $tahun)) {
-                // Targeted parallel search untuk angkatan dan prodi tertentu
-                // 000 hingga 025 (mencakup nomor urut 0001 - 0259 per tahun, aman dari limit 30 PDDIKTI)
-                if ($kodeProdi) {
-                    for ($i = 0; $i <= 25; $i++) {
-                        $keywords[] = sprintf("%s%s%03d", $tahun, $kodeProdi, $i);
-                    }
-                }
-                $keywords[] = "{$tahun} {$prodi} " . PT_NAME;
-                $keywords[] = "{$prodi} " . PT_NAME;
-                $keyword = $prodi . ' ' . $tahun;
-                $dasar = pencarianMultiParallel($keywords, $prodi, $tahun);
-            } else {
-                // Semua tahun untuk prodi ini: ambil SELURUH mahasiswa tanpa batasan!
-                if ($kodeProdi) {
-                    $years = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
-                    foreach ($years as $y) {
-                        for ($i = 0; $i <= 15; $i++) {
-                            $keywords[] = sprintf("%s%s%03d", $y, $kodeProdi, $i);
+                    $keywords[] = "{$tahun} {$prodi} " . PT_NAME;
+                    $keywords[] = "{$prodi} " . PT_NAME;
+                    $keyword = $prodi . ' ' . $tahun;
+                    $dasar = pencarianMultiParallel($keywords, $prodi, $tahun);
+                } else {
+                    // Semua tahun untuk prodi ini: ambil SELURUH mahasiswa tanpa batasan!
+                    if ($kodeProdi) {
+                        $years = [2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026];
+                        foreach ($years as $y) {
+                            for ($i = 0; $i <= 15; $i++) {
+                                $keywords[] = sprintf("%s%s%03d", $y, $kodeProdi, $i);
+                            }
                         }
                     }
+                    $keywords[] = "{$prodi} " . PT_NAME;
+                    $keyword = $prodi . ' Semua Tahun';
+                    $dasar = pencarianMultiParallel($keywords, $prodi, '');
                 }
-                $keywords[] = "{$prodi} " . PT_NAME;
-                $keyword = $prodi . ' Semua Tahun';
-                $dasar = pencarianMultiParallel($keywords, $prodi, '');
-            }
-        } else {
-            // prodi === 'all'
-            if ($tahun !== 'all' && preg_match('/^\d{4}$/', $tahun)) {
-                $keyword = $tahun . ' ' . PT_NAME;
-                $dasar = cariMahasiswaDasar($keyword, 'all');
             } else {
-                $keyword = PT_NAME;
-                $dasar = cariMahasiswaDasar($keyword, 'all');
+                // prodi === 'all'
+                if ($tahun !== 'all' && preg_match('/^\d{4}$/', $tahun)) {
+                    $keyword = $tahun . ' ' . PT_NAME;
+                    $dasar = cariMahasiswaDasar($keyword, 'all');
+                } else {
+                    $keyword = PT_NAME;
+                    $dasar = cariMahasiswaDasar($keyword, 'all');
+                }
             }
-        }
 
+            /* ====================================================
+               DETAIL (PARALEL CURL_MULTI)
+            ==================================================== */
 
-        /* ====================================================
-           DETAIL (PARALEL CURL_MULTI)
-        ==================================================== */
+            $semuaDetail =
+                lengkapiMahasiswa(
+                    $dasar
+                );
 
-        $semuaDetail =
-            lengkapiMahasiswa(
-                $dasar
+            /* ====================================================
+               DAFTAR TAHUN YANG TERSEDIA
+            ==================================================== */
+
+            $tahunTersedia = [];
+            $tahunSekarang = (int)date('Y');
+            for ($y = max($tahunSekarang, 2026); $y >= 2012; $y--) {
+                $tahunTersedia[] = (string)$y;
+            }
+
+            foreach (
+                $semuaDetail
+                as
+                $item
+            ) {
+                $tahunItem =
+                    trim(
+                        $item['tahun_masuk']
+                        ??
+                        ''
+                    );
+
+                if ($tahunItem !== '' && !in_array($tahunItem, $tahunTersedia, true)) {
+                    $tahunTersedia[] =
+                        $tahunItem;
+                }
+            }
+
+            rsort(
+                $tahunTersedia,
+                SORT_NUMERIC
             );
 
+            /* ====================================================
+               FILTER TAHUN
+            ==================================================== */
 
-        /* ====================================================
-           DAFTAR TAHUN YANG TERSEDIA
-        ==================================================== */
+            if (
+                $tahun !== 'all'
+                &&
+                $tahun !== ''
+            ) {
+                $items =
+                    array_values(
+                        array_filter(
+                            $semuaDetail,
+                            function ($item)
+                            use ($tahun) {
+                                return
+                                    ($item['tahun_masuk'] ?? '')
+                                    ===
+                                    $tahun;
+                            }
+                        )
+                    );
+            } else {
+                $items = $semuaDetail;
+            }
 
-        $tahunTersedia = [];
-        $tahunSekarang = (int)date('Y');
-        for ($y = max($tahunSekarang, 2026); $y >= 2012; $y--) {
-            $tahunTersedia[] = (string)$y;
-        }
+            $labelProdi =
+                $prodi === 'all'
+                    ? 'Semua Program Studi'
+                    : $prodi;
 
-        foreach (
-            $semuaDetail
-            as
-            $item
-        ) {
-            $tahunItem =
-                trim(
-                    $item['tahun_masuk']
-                    ??
-                    ''
+            $labelTahun =
+                $tahun === 'all'
+                    ? 'Semua Tahun'
+                    : $tahun;
+
+            responseJson(
+                true,
+                [
+                    'items' =>
+                        $items,
+                    'jumlah_hasil_api' =>
+                        count($items),
+                    'program_studi' =>
+                        $labelProdi,
+                    'tahun' =>
+                        $labelTahun,
+                    'tahun_tersedia' =>
+                        $tahunTersedia,
+                    'keyword_api' =>
+                        $keyword,
+                    'hasil_lengkap' =>
+                        false,
+                    'sumber' =>
+                        'live_api'
+                ],
+                'Data mahasiswa berhasil diambil dari API PDDIKTI.'
+            );
+
+        } catch (Throwable $exLive) {
+            // Jika live search gagal (misal kena blokir Cloudflare 403 atau offline)
+            // dan file data/mahasiswa.json tersedia, gunakan data lokal secara transparan
+            if (file_exists($localMhsFile)) {
+                $items = cariDariMahasiswaJson($prodi, $tahun, $q);
+                $tahunTersedia = [];
+                $tahunSekarang = (int)date('Y');
+                for ($y = max($tahunSekarang, 2026); $y >= 2012; $y--) {
+                    $tahunTersedia[] = (string)$y;
+                }
+                foreach ($items as $it) {
+                    $th = trim($it['tahun_masuk'] ?? '');
+                    if ($th !== '' && !in_array($th, $tahunTersedia, true)) {
+                        $tahunTersedia[] = $th;
+                    }
+                }
+                rsort($tahunTersedia, SORT_NUMERIC);
+
+                $labelProdi = ($prodi === 'all') ? 'Semua Program Studi' : $prodi;
+                $labelTahun = ($tahun === 'all') ? 'Semua Tahun' : $tahun;
+
+                responseJson(
+                    true,
+                    [
+                        'items' => $items,
+                        'jumlah_hasil_api' => count($items),
+                        'program_studi' => $labelProdi,
+                        'tahun' => $labelTahun,
+                        'tahun_tersedia' => $tahunTersedia,
+                        'keyword_api' => $q ?: ($prodi . ' ' . $tahun),
+                        'hasil_lengkap' => true,
+                        'sumber' => 'fallback_database_lokal'
+                    ],
+                    'Data mahasiswa berhasil dimuat dari database PDDIKTI PNL.'
                 );
-
-            if ($tahunItem !== '' && !in_array($tahunItem, $tahunTersedia, true)) {
-                $tahunTersedia[] =
-                    $tahunItem;
+            } else {
+                throw $exLive;
             }
         }
-
-        rsort(
-            $tahunTersedia,
-            SORT_NUMERIC
-        );
-
-
-        /* ====================================================
-           FILTER TAHUN
-        ==================================================== */
-
-        if (
-            $tahun !== 'all'
-            &&
-            $tahun !== ''
-        ) {
-            $items =
-                array_values(
-                    array_filter(
-                        $semuaDetail,
-                        function ($item)
-                        use ($tahun) {
-                            return
-                                ($item['tahun_masuk'] ?? '')
-                                ===
-                                $tahun;
-                        }
-                    )
-                );
-        } else {
-            $items = $semuaDetail;
-        }
-
-
-        /* ====================================================
-           LABEL
-        ==================================================== */
-
-        $labelProdi =
-            $prodi === 'all'
-                ? 'Semua Program Studi'
-                : $prodi;
-
-
-        $labelTahun =
-            $tahun === 'all'
-                ? 'Semua Tahun'
-                : $tahun;
-
-
-        /* ====================================================
-           RESPONSE
-        ==================================================== */
-
-        responseJson(
-
-            true,
-
-            [
-                'items' =>
-                    $items,
-
-                'jumlah_hasil_api' =>
-                    count($items),
-
-                'program_studi' =>
-                    $labelProdi,
-
-                'tahun' =>
-                    $labelTahun,
-
-                'tahun_tersedia' =>
-                    $tahunTersedia,
-
-                'keyword_api' =>
-                    $keyword,
-
-                'hasil_lengkap' =>
-                    false
-            ],
-
-            'Data mahasiswa berhasil diambil dari API PDDIKTI.'
-        );
     }
 
 
